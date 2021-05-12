@@ -53,3 +53,26 @@ Math = eval(A)
 
 
 
+concat(x::String) = x
+concat(x::String, y::String) = x * y
+
+A = (concat = concat,)
+
+# TEST WITH MOCK
+name = "abs"
+nrparams = 1
+
+abs(x) = jcall(jlm, name, jint, (jint,), x)
+
+name = "abs"
+nrparams = 2
+abs(x, y) = jcall(jlm, name, jint, (jint, jint), x, y)
+
+vars = split("abcdefghijklmnopqrstuvwxyz", "")
+macro generateFunction(name, nrparams)
+    local parameters = vars[1:nrparams]
+    return  :( $name($([Symbol(p) for p in parameters]...)) = 1 )
+end
+
+name = "abs"
+nrparams = 2
