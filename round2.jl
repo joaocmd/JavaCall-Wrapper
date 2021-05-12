@@ -30,4 +30,4 @@ for method in methods
 end
 
 unique!(methodNames) # maybe use a set?
-(;zip([Symbol(m) for m in methodNames], [1 for m in methodNames])...)
+Math = (;zip([Symbol(m) for m in methodNames], [eval(Symbol("pava_" * m)) for m in methodNames])...)
