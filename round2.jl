@@ -89,6 +89,20 @@ for method in JavaCall.listmethods(jlm)
     # TODO: in these functions, if the returned is an object, wrap it in the proxy
     # Same applies if a proxy is passed as function argument, will probably need some changes to the static
     # methods to allow that
+    # getvalue(x) = x
+    # getvalue(x::JavaValue) = getfield(x, :ref)
+
+    # foo(bar) -> begin
+    #     parameters = [getvalue(x) for x in parameters]
+    #     res = jcall(jlm, $name, $returntype)
+    #     if typeof(res) == JavaCall.JavaObject
+    #         _instancemethods = @pimport getname(getclass(res)) # how?
+    #         JavaValue(res, _instancemethods)
+    #     else
+    #         res
+    #     end
+    # end
+
     if (isstatic(method))
         push!(methodnames, getname(method))
         newmethod = :( $(Symbol(hygienic_name))($(typed_parameters...)) = jcall(jlm, $name, $returntype, $parametertypes, $(parameters...)) )
