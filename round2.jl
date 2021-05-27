@@ -1,4 +1,4 @@
-import Pkg
+# import Pkg
 # Pkg.add("JavaCall")
 
 ##
@@ -11,7 +11,6 @@ Base.show(io::IO, obj::JavaCall.JavaObject) =
 
 struct JavaValue
     ref::JavaCall.JavaObject 
-    # maybe try to use a NamedTuple?
     methods::NamedTuple
 end
 
@@ -23,16 +22,18 @@ Base.getproperty(jv::JavaValue, sym::Symbol) =
 
 ##
 
-macro pimport(package)
-    local p = @jimport $package
-end
-
-@pimport java.lang.Math
+# public void f(Comparable<?> b)
+# public void f(Serializable c)
+# f(Serializable(o))
 
 mdf = @jimport java.lang.reflect.Modifier
-isstatic(method::JMethod) = begin
+isstatic(method::Union{JavaCall.JField, JavaCall.JMethod}) = begin
     modifiers = jcall(method, "getModifiers", jint, ())
     Bool(jcall(mdf, "isStatic", jboolean, (jint,), modifiers))
+end
+isfinal(method::Union{JavaCall.JField, JavaCall.JMethod}) = begin
+    modifiers = jcall(method, "getModifiers", jint, ())
+    Bool(jcall(mdf, "isFinal", jboolean, (jint,), modifiers))
 end
 
 ##
@@ -71,64 +72,99 @@ end
     
 ##
 
-jlm = @jimport java.time.LocalDate
-methodnames = []
-instancemethods = []
+#jlm = @jimport java.time.LocalDate
+#methodnames = []
+#instancemethods = []
 
-PROBLEM = Nothing
+#module LocalDate
 
-for method in JavaCall.listmethods(jlm)
-    name = getname(method)
-    hygienic_name = "pava2_" * name
-    returntype = normalizeJavaType(getreturntype(method))
-    parametertypes = Tuple(normalizeJavaType(p) for p in getparametertypes(method))
-    parameters = [Symbol("p" * string(i)) for i in 1:length(parametertypes)]
+#methodnames = []
+#instancemethodnames = []
 
-    typed_parameters = [:($(a[1])::$(a[2])) for a in zip(parameters, parametertypes)]
+function javaClassModuleName(classname::String)
+    "PAvaJavaInterop Class " * classname
+end
 
-    # TODO: in these functions, if the returned is an object, wrap it in the proxy
-    # Same applies if a proxy is passed as function argument, will probably need some changes to the static
-    # methods to allow that
-    # getvalue(x) = x
-    # getvalue(x::JavaValue) = getfield(x, :ref)
+function javaClass(classname::String)
+    if ! Base.isdefined(Main, Symbol(javaClassModuleName(classname)))
+        javaClassModule(classname)
+    end
 
-    # foo(bar) -> begin
-    #     parameters = [getvalue(x) for x in parameters]
-    #     res = jcall(jlm, $name, $returntype)
-    #     if typeof(res) == JavaCall.JavaObject
-    #         _instancemethods = @pimport getname(getclass(res)) # how?
-    #         JavaValue(res, _instancemethods)
-    #     else
-    #         res
-    #     end
-    # end
+    eval(Symbol(javaClassModuleName(classname)))
+end
 
-    if (isstatic(method))
-        push!(methodnames, getname(method))
-        newmethod = :( $(Symbol(hygienic_name))($(typed_parameters...)) = jcall(jlm, $name, $returntype, $parametertypes, $(parameters...)) )
-        eval(newmethod)
-    else
-        push!(instancemethods, getname(method))
-        inst_param = :(inst::$(jlm))
-        newmethod = :( $(Symbol(hygienic_name))($inst_param) = ($(typed_parameters...),) -> jcall(inst, $name, $returntype, $parametertypes, $(parameters...)))
-        eval(newmethod)
+function javaClassModule(classname::String)
+    for str ∈ [" ", "(", ")"]
+        classname = replace(classname, str => "")
+    end
+    local class = JavaCall.JavaObject{Symbol(classname)}
+    local mod_name = javaClassModuleName(classname)
+
+    # create module
+    eval(:(module $(Symbol(mod_name)) end))
+    mod = eval(Symbol(mod_name)) 
+
+    for method in JavaCall.listmethods(class)
+        local name = getname(method)
+        local returntype = normalizeJavaType(getreturntype(method))
+        local parametertypes = Tuple(normalizeJavaType(p) for p in getparametertypes(method))
+        local parameters = [Symbol("p" * string(i)) for i in 1:length(parametertypes)]
+        local typed_parameters = [:($(a[1])::$(a[2])) for a in zip(parameters, parametertypes)]
+
+        # TODO: in these functions, if the returned is an object, wrap it in the proxy
+        # Same applies if a proxy is passed as function argument, will probably need some changes to the static
+        # methods to allow that
+        # getvalue(x) = x
+        # getvalue(x::JavaValue) = getfield(x, :ref)
+
+        # foo(bar) -> begin
+        #     parameters = [getvalue(x) for x in parameters]
+        #     res = jcall(jlm, $name, $returntype)
+        #     if typeof(res) == JavaCall.JavaObject
+        #         _instancemethods = @pimport getname(getclass(res)) # how?
+        #         a = JavaValue(res, _instancemethods)
+        #     else
+        #         res
+        #     end
+        # end
+
+        if (isstatic(method))
+            push!(methodnames, getname(method))
+            newmethod = :( $(Symbol(name))($(typed_parameters...)) = jcall(jlm, $name, $returntype, $parametertypes, $(parameters...)) )
+            Base.eval(mod, newmethod)
+        else
+            push!(instancemethods, getname(method))
+            inst_param = :(inst::$(class))
+            newmethod = :( $(Symbol(name))($inst_param) = ($(typed_parameters...),) -> jcall(inst, $name, $returntype, $parametertypes, $(parameters...)))
+            Base.eval(mod, newmethod)
+        end
+    end
+
+    for field in JavaCall.listfields(jlm)
+        name = JavaCall.getname(field)
+        type = JavaCall.jcall(field, "getType", JClass, ())
+        type = normalizeJavaType(type)
+
+        if isstatic(field)
+            if isfinal(field)
+                val = JavaCall.jfield(jlm, name, type)
+                Base.eval(mod, :( $(Symbol(name)) = $(val) ))
+            else
+                # TODO: use better setter than the boxed get/set
+                getter = :( $(Symbol(name))() = JavaCall.jfield($(class), $(field), $(type)) )
+                setter = :( $(Symbol(name))(val::$(type)) = JavaCall.jcall($(field), "set", JavaCall.jvoid, ($(type)), ) )
+
+                Base.eval(mod, getter)
+                Base.eval(mod, setter)
+            end
+        else
+            # TODO
+        end 
     end
 end
 
-fields = []
-for field in JavaCall.listfields(jlm)
-    name = JavaCall.getname(field)
-    type = JavaCall.jcall(field, "getType", JClass, ())
-    type = normalizeJavaType(type)
+##
 
-    # HACK: fields may not be final, it's not desirable to be stuck with the value currently present
-    # val = () -> JavaCall.jfield(jlm, name, type) something like this would be good but not really this??
-    val = JavaCall.jfield(jlm, name, type)
-    fields = push!(fields, (Symbol(name), val))
-end
-
-unique!(methodnames) # maybe use a set?
-methods_ = zip([Symbol(m) for m in methodnames], [eval(Symbol("pava2_" * m)) for m in methodnames])
 LocalDate = merge((;fields...), (;methods_...))
 
 unique!(instancemethods)
@@ -138,4 +174,4 @@ now = LocalDate.now()
 method = (plusDays = (jtld) -> (days) -> jcall(jtld, "plusDays", jlm, (jlong,), days),)
 
 a = JavaValue(now, instancemethods_)
-#
+# 
