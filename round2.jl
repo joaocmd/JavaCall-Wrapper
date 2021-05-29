@@ -1,5 +1,5 @@
-# import Pkg
-# Pkg.add("JavaCall")
+import Pkg
+Pkg.add("JavaCall")
 
 ##
 
@@ -10,7 +10,7 @@ Base.show(io::IO, obj::JavaCall.JavaObject) =
     print(io, jcall(obj, "toString", JString, ()))
 
 struct JavaValue
-    ref::JavaCall.JavaObject 
+    ref::JavaCall.JavaObject
     methods::NamedTuple
 end
 
@@ -69,7 +69,7 @@ end
 normalizeJavaType(x::JavaCall.JClass) = begin
     normalizeJavaType(getname(x))
 end
-    
+
 ##
 
 #jlm = @jimport java.time.LocalDate
@@ -87,22 +87,22 @@ end
 
 function javaClass(classname::String)
     if ! Base.isdefined(Main, Symbol(javaClassModuleName(classname)))
-        javaClassModule(classname)
+        createJavaClassModule(classname)
     end
 
     eval(Symbol(javaClassModuleName(classname)))
 end
 
-function javaClassModule(classname::String)
+function createJavaClassModule(classname::String)
     for str ∈ [" ", "(", ")"]
         classname = replace(classname, str => "")
     end
-    local class = JavaCall.JavaObject{Symbol(classname)}
-    local mod_name = javaClassModuleName(classname)
+    class = JavaCall.JavaObject{Symbol(classname)}
+    mod_name = javaClassModuleName(classname)
 
     # create module
     eval(:(module $(Symbol(mod_name)) end))
-    mod = eval(Symbol(mod_name)) 
+    mod = eval(Symbol(mod_name))
 
     for method in JavaCall.listmethods(class)
         local name = getname(method)
@@ -129,25 +129,23 @@ function javaClassModule(classname::String)
         # end
 
         if (isstatic(method))
-            push!(methodnames, getname(method))
-            newmethod = :( $(Symbol(name))($(typed_parameters...)) = jcall(jlm, $name, $returntype, $parametertypes, $(parameters...)) )
+            newmethod = :( $(Symbol(name))($(typed_parameters...)) = jcall(class, $name, $returntype, $parametertypes, $(parameters...)) )
             Base.eval(mod, newmethod)
         else
-            push!(instancemethods, getname(method))
             inst_param = :(inst::$(class))
             newmethod = :( $(Symbol(name))($inst_param) = ($(typed_parameters...),) -> jcall(inst, $name, $returntype, $parametertypes, $(parameters...)))
             Base.eval(mod, newmethod)
         end
     end
 
-    for field in JavaCall.listfields(jlm)
+    for field in JavaCall.listfields(class)
         name = JavaCall.getname(field)
         type = JavaCall.jcall(field, "getType", JClass, ())
         type = normalizeJavaType(type)
 
         if isstatic(field)
             if isfinal(field)
-                val = JavaCall.jfield(jlm, name, type)
+                val = JavaCall.jfield(class, name, type)
                 Base.eval(mod, :( $(Symbol(name)) = $(val) ))
             else
                 # TODO: use better setter than the boxed get/set
@@ -159,8 +157,13 @@ function javaClassModule(classname::String)
             end
         else
             # TODO
-        end 
+        end
     end
+
+    Base.eval(mod, :( struct $(Symbol("Instance Type")) end ))
+
+    Base.eval(mod, :( :class = $(class) ))
+    Base.eval(mod, :( :new() = $("TODO: should be a constructor") ))
 end
 
 ##
@@ -174,4 +177,4 @@ now = LocalDate.now()
 method = (plusDays = (jtld) -> (days) -> jcall(jtld, "plusDays", jlm, (jlong,), days),)
 
 a = JavaValue(now, instancemethods_)
-# 
+#
