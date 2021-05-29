@@ -3,7 +3,6 @@ Pkg.add("JavaCall")
 
 ##
 using JavaCall
-##
 JavaCall.init(["-Xmx128M"])
 ##
 Base.show(io::IO, obj::JavaCall.JavaObject) =
@@ -15,6 +14,7 @@ struct JavaValue
 end
 
 struct ClassProxy
+    name::String
     mod::Module
 end
 
@@ -25,11 +25,14 @@ Base.getproperty(jv::JavaValue, sym::Symbol) =
     getfield(jv, :methods)[sym](getfield(jv, :ref))
 
     
+Base.show(io::IO, cp::ClassProxy) =
+    show(io, getfield(cp, :name))
+
 Base.getproperty(cp::ClassProxy, sym::Symbol) = begin
-    if string(sym) ∈ getfield(cp, :mod).static
-        eval(:( getfield($cp, :mod).$sym() )) # call the getter
+    if string(sym) ∈ getfield(cp, :mod).final
+        eval(:( getfield($cp, :mod).$(sym) )) # get the method/constant
     else
-        return eval(:( getfield($cp, :mod).$(sym) )) # get the method
+        eval(:( getfield($cp, :mod).$sym() )) # call the getter
     end
 end
 
@@ -111,14 +114,11 @@ function javaClass(classname::String)
 end
 
 function javaClassModule(classname::String)
-    for str ∈ [" ", "(", ")"]
-        classname = replace(classname, str => "")
-    end
-    local class = JavaCall.JavaObject{Symbol(classname)}
-    local mod_name = javaClassModuleName(classname)
+    class = eval(JavaCall._jimport(classname))
+    mod_name = javaClassModuleName(classname)
 
     # create module
-        eval(:(module $(Symbol(mod_name)) using JavaCall end))
+    eval(:(module $(Symbol(mod_name)) using JavaCall end))
     mod = eval(Symbol(mod_name)) 
 
     for method in JavaCall.listmethods(class)
@@ -155,10 +155,10 @@ function javaClassModule(classname::String)
         end
     end
 
-    Base.eval(mod, :( static = Set() ))
+    Base.eval(mod, :( final = Set() ))
     for field in JavaCall.listfields(class)
         name = JavaCall.getname(field)
-        union!(mod.static, [name])
+        union!(mod.final, [name])
         type = JavaCall.jcall(field, "getType", JClass, ())
         type = normalizeJavaType(type)
 
@@ -179,7 +179,7 @@ function javaClassModule(classname::String)
             # TODO
         end 
     end
-    ClassProxy(mod)
+    ClassProxy(classname, mod)
 end
 
 ##
