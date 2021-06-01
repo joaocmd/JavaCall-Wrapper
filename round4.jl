@@ -2,13 +2,26 @@ import Pkg
 Pkg.add("JavaCall")
 
 ##
-using JavaCall
-JavaCall.init(["-Xmx128M"])
-##
-module JavaProxyUtils
-    export ImportProxy, InstanceProxy, normalizeJavaType, wrapped, unwrapped
+module BetterJavaCall
+    export ImportProxy, InstanceProxy, @jimport
 
     using JavaCall
+
+    function init(args...)
+        JavaCall.init(args...)
+    end
+
+    macro jimport(class::Expr)
+        class = sprint(Base.show_unquoted, class)
+        :(javaImport($class))
+    end
+    macro jimport(class::Symbol)
+        class = string(class)
+        :(javaImport($class))
+    end
+    macro jimport(class::AbstractString)
+        :(javaImport($class))
+    end
 
     Base.show(io::IO, obj::JavaCall.JavaObject) =
         print(io, jcall(obj, "toString", JString, ()))
@@ -82,7 +95,7 @@ module JavaProxyUtils
         end
     end
 
-    mdf = @jimport java.lang.reflect.Modifier
+    mdf = JavaCall.@jimport java.lang.reflect.Modifier
     isstatic(method::Union{JavaCall.JField,JavaCall.JMethod}) = begin
         local modifiers = JavaCall.jcall(method, "getModifiers", JavaCall.jint, ())
         Bool(JavaCall.jcall(mdf, "isStatic", JavaCall.jboolean, (JavaCall.jint,), modifiers))
@@ -139,7 +152,7 @@ module JavaProxyUtils
     wrapped(x::Union{InstanceProxy, java_primitive_types, String}) = x
     wrapped(x::JavaCall.JavaObject{C}) where {C} = begin
         local classname = string(C)
-        local mod = getfield(javaImportClass(classname), :mod)
+        local mod = getfield(javaImport(classname), :mod)
 
         InstanceProxy(x, mod)
     end
@@ -152,8 +165,8 @@ module JavaProxyUtils
 
     javaClassModuleName(classname::String) = "PAvaJavaInterop Class " * classname
 
-    function javaImportClass(classname::String)
-        if ! Base.isdefined(Main.JavaProxyUtils, Symbol(javaClassModuleName(classname)))
+    function javaImport(classname::String)
+        if ! Base.isdefined(Main.BetterJavaCall, Symbol(javaClassModuleName(classname)))
             loadJavaClass(classname)
         end
 
@@ -168,7 +181,7 @@ module JavaProxyUtils
         eval(:(
             module $(Symbol(mod_name))
                 using JavaCall
-                using Main.JavaProxyUtils: wrapped, unwrapped
+                using Main.BetterJavaCall: wrapped, unwrapped
 
                 class_class = $(JavaCall.classforname(classname))
                 class_type = $class
@@ -267,23 +280,15 @@ module JavaProxyUtils
         Base.eval(mod, :( new() = $("TODO: should be a constructor") )) # get all constructors
     end
 
-    Base.convert(::Type{JavaProxyUtils.InstanceProxy}, s::String) = wrapped(JavaCall.JString(s))
-    Base.convert(::Type{String}, x::JavaProxyUtils.InstanceProxy) = String(unwrapped(x))
+    Base.convert(::Type{BetterJavaCall.InstanceProxy}, s::String) = wrapped(JavaCall.JString(s))
+    Base.convert(::Type{String}, x::BetterJavaCall.InstanceProxy) = String(unwrapped(x))
 end
-##
 
 ##
-class = javaImportClass("java.time.LocalDate")
-mod = getfield(class, :mod)
-
+using Main.BetterJavaCall
+BetterJavaCall.init(["-Xmx128M"])
 ##
-LocalDate = merge((;fields...), (;methods_...))
 
-unique!(instancemethods)
-instancemethods_ = (;zip([Symbol(m) for m in instancemethods], [eval(Symbol("pava2_" * m)) for m in instancemethods])...)
+LocalDate = @jimport java.time.LocalDate
 
-now = LocalDate.now()
-    method = (plusDays = (jtld) -> (days) -> jcall(jtld, "plusDays", jlm, (jlong,), days),)
-
-a = InstanceProxy(now, instancemethods_)
-#
+LocalDate.now()
