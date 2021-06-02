@@ -43,7 +43,9 @@ module BetterJavaCall
         elseif sym == :δmod
             getfield(proxy, :mod)
         elseif sym == :class
-            wrapped(getfield(proxy, :mod).class_class)
+            wrapped(getfield(proxy, :mod).class)
+        elseif sym == :new
+            getfield(proxy, :mod).new
         elseif haskey(getfield(proxy, :mod).static_methods, sym)
             eval(:( getfield($proxy, :mod).static_methods.$sym ))
         elseif haskey(getfield(proxy, :mod).static_fields, sym)
@@ -193,8 +195,8 @@ module BetterJavaCall
                 using JavaCall
                 using Main.BetterJavaCall: wrapped, unwrapped
 
-                class_class = $(JavaCall.classforname(classname))
                 class_type = $class
+                class = $(JavaCall.classforname(classname))
                 name = $classname
             end
         ))
@@ -287,7 +289,29 @@ module BetterJavaCall
             static_fields = ($(static_fields...),)
         end)
 
-        Base.eval(mod, :( new() = $("TODO: should be a constructor") )) # get all constructors
+        # Note: this uses the wrappers from above, but is not an endless loop
+        # after the module is first created: javaImport returns the existing module
+        # and the methods are defined before this
+        #
+        for constructor in JavaCall.jcall(mod.class, "getConstructors", Vector{JavaCall.JConstructor}, ())
+            local parametertypes = Tuple(
+                normalizeJavaType(JavaCall.jcall(t, "getName", JavaCall.JString, ()))
+                for t in JavaCall.jcall(constructor, "getParameterTypes", Vector{JavaCall.JClass}, ())
+            )
+            local parameternames = [:($(Symbol("p" * string(i)))) for i in 1:length(parametertypes)]
+            local typed_parameters = [:($(a[1])::$(wrapped(a[2]))) for a in zip(parameternames, parametertypes)]
+
+            local ctordef = quote
+                function new($(typed_parameters...))
+                    $(( :($pn = unwrapped($pn)) for pn in parameternames )...);
+
+                    local res = JavaCall.jnew(Symbol($classname), $parametertypes, $(parameternames...))
+                    wrapped(res)
+                end
+            end
+            Base.eval(mod, ctordef)
+        end
+
     end
 
     JString = @jimport java.lang.String
