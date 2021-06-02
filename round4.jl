@@ -3,7 +3,7 @@ Pkg.add("JavaCall")
 
 ##
 module BetterJavaCall
-    export ImportProxy, InstanceProxy, @jimport
+    export ImportProxy, InstanceProxy, @jimport, JString, tojstring
 
     using JavaCall
 
@@ -25,6 +25,8 @@ module BetterJavaCall
 
     Base.show(io::IO, obj::JavaCall.JavaObject) =
         print(io, jcall(obj, "toString", JString, ()))
+    Base.show(io::IO, js::JavaCall.JString) =
+        show(io, convert(AbstractString, js))
 
     struct ImportProxy
         mod::Module
@@ -115,13 +117,13 @@ module BetterJavaCall
         elseif name == "byte" || name == "java.lang.Byte"
             JavaCall.jbyte
         elseif name == "char" || name == "java.lang.Char"
-            JavaCall.jchar
+            JavaCall.jchar # UInt16
         elseif name == "float" || name == "java.lang.Float"
             JavaCall.jfloat
         elseif name == "double" || name == "java.lang.Double"
             JavaCall.jdouble
         elseif name == "boolean" || name == "java.lang.Boolean"
-            JavaCall.jboolean
+            JavaCall.jboolean # UInt8
         elseif name == "void" || name == "java.lang.Void"
             JavaCall.jvoid
         elseif (m = Base.match(r"[^\][]+((\[])+)", name); typeof(m) != Nothing)
@@ -138,13 +140,15 @@ module BetterJavaCall
         normalizeJavaType(getname(x))
     end
 
-    java_primitive_types = Core.Union{Int8, Int16, Int32, Int64, UInt16, Float32, Float64, Nothing}
+    java_primitive_types = Core.Union{Int8, Int16, Int32, Int64, Float32, Float64, Nothing}
 
     unwrapped(x::InstanceProxy) = getfield(x, :ref)
-    unwrapped(x::Union{JavaCall.JavaObject, java_primitive_types}) = x
+    unwrapped(x::Union{JavaCall.JavaObject, java_primitive_types, String}) = x
     unwrapped(x::Array{T, N}) where {T, N} = map(unwrapped, x)
-    unwrapped(x::Bool) = UInt8(x) # kinda ugly, but nothing else is a UInt8
+    unwrapped(x::Bool) = UInt8(x)
+    unwrapped(x::Char) = UInt16(x)
     unwrapped(::Type{Bool}) = UInt8
+    unwrapped(::Type{Char}) = UInt16
     unwrapped(t::Type{<: Union{JavaCall.JavaObject, java_primitive_types}}) = t
     unwrapped(::Type{<: InstanceProxy}) = JavaCall.JavaObject
     unwrapped(::Type{Array{T, N}}) where {T, N} = Array{unwrapped(T), N}
@@ -158,7 +162,13 @@ module BetterJavaCall
     end
     wrapped(x::Array{T, N}) where {T, N} = map(wrapped, x)
     wrapped(x::UInt8) = Bool(x) # kinda ugly, but nothing else is a UInt8
+    wrapped(x::UInt16) = Char(x) # kinda ugly, but nothing else is a UInt16
     wrapped(::Type{UInt8}) = Bool
+    wrapped(::Type{UInt16}) = Char
+    wrapped(::Union{Type{JavaCall.JavaObject{Symbol("java.lang.String")}}, Type{JavaCall.JavaObject{Symbol("java.lang.CharSequence")}}}) = Union{
+        String,
+        InstanceProxy
+    }
     wrapped(::Type{<: JavaCall.JavaObject}) = InstanceProxy
     wrapped(t::Type{<: Union{InstanceProxy, java_primitive_types}}) = t
     wrapped(::Type{Array{T, N}}) where {T, N} = Array{wrapped(T), N}
@@ -280,8 +290,8 @@ module BetterJavaCall
         Base.eval(mod, :( new() = $("TODO: should be a constructor") )) # get all constructors
     end
 
-    Base.convert(::Type{BetterJavaCall.InstanceProxy}, s::String) = wrapped(JavaCall.JString(s))
-    Base.convert(::Type{String}, x::BetterJavaCall.InstanceProxy) = String(unwrapped(x))
+    JString = @jimport java.lang.String
+    tojstring(x::String) = InstanceProxy(JavaCall.JString(x), JString.δmod)
 end
 
 ##
