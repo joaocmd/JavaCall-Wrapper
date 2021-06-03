@@ -47,3 +47,34 @@ JavaCall.eval(quote
         end
     end
 end)
+
+# not exceptions but it was amiss
+JavaCall.eval(quote
+    function conventional_name(name::AbstractString)
+        if startswith(name, "[")
+            return conventional_name(name[2:end]) * "[]"
+        elseif name == "Z"
+            return "boolean"
+        elseif name == "B"
+            return "byte"
+        elseif name == "C"
+            return "char"
+        elseif name == "I"
+            return "int"
+        elseif name == "J"
+            return "long"
+        elseif name == "F"
+            return "float"
+        elseif name == "D"
+            return "double"
+        elseif name == "V"
+            return "void"
+        elseif name == "S" # was missing in JavaCall :/
+            return "short"
+        elseif startswith(name, "L")
+            return name[2:end-1]
+        else
+            return name
+        end
+    end
+end)

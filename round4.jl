@@ -3,32 +3,34 @@
 
 ##
 module BetterJavaCall
-    export ImportProxy, InstanceProxy, @jimport
+export ImportProxy, InstanceProxy, @jimport
 
-    include("javacall_patch.jl")
-    include("type_tags.jl")
-    include("proxies.jl")
-    include("dyncall.jl")
-    include("wrapping.jl")
-    include("loader.jl")
-    include("convert.jl")
+include("javacall_patch.jl")
+include("type_tags.jl")
+include("proxies.jl")
+include("dyncall.jl")
+include("wrapping.jl")
+include("loader.jl")
+include("convert.jl")
 
-    import JavaCall
-    using JavaCall: JavaObject # why is this needed?
+import JavaCall
+using JavaCall: JavaObject # why is this needed?
 
-    init(args...) = JavaCall.init(args...)
+init(args...) = JavaCall.init(args...)
 
-    macro jimport(class::Expr)
-        class = sprint(Base.show_unquoted, class)
-        :(javaImport($class))
-    end
-    macro jimport(class::Symbol)
-        class = string(class)
-        :(javaImport($class))
-    end
-    macro jimport(class::AbstractString)
-        :(javaImport($class))
-    end
+macro jimport(class::Expr)
+    class = sprint(Base.show_unquoted, class)
+    :(javaImport($class))
+end
+macro jimport(class::Symbol)
+    class = string(class)
+    :(javaImport($class))
+end
+macro jimport(class::AbstractString)
+    :(javaImport($class))
+end
+
+
 end
 
 ##
