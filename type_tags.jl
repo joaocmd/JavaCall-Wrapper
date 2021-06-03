@@ -9,13 +9,13 @@ typeTagForName(name::String) = begin
         local class = JavaCall.classforname(name)
         local isinterface = Bool(JavaCall.jcall(class, "isInterface", JavaCall.jboolean, ()))
 
-        local superclasstag = if !isinterface
+        local superclasstag = if isinterface
+            _typeTagSymbolForName("interface")
+        else
             local superclass = JavaCall.jcall(class, "getSuperclass", JavaCall.JClass, ())
             local superclassname = JavaCall.getname(superclass)
             typeTagForName(superclassname) # ensure it is created
             _typeTagSymbolForName(superclassname)
-        else
-            :JavaTypeTag
         end
 
         local def = quote
@@ -31,7 +31,7 @@ end
 macro deftype(e)
     if e.head == :.
         e = sprint(Base.show_unquoted, e)
-        @assert e == "java.lang.Object"
+        @assert e == "java.lang.Object" || e == "interface"
         t = _typeTagSymbolForName(e)
 
         quote
@@ -51,14 +51,18 @@ macro deftype(e)
 end
 
 @deftype java.lang.Object
-@deftype java.lang.Number <: java.lang.Object
-@deftype java.lang.String <: java.lang.Object
+@deftype interface
 @deftype java.lang.Boolean <: java.lang.Object
 @deftype java.lang.Character <: java.lang.Object
-@deftype java.lang.Throwable <: java.lang.Object
+
+@deftype java.lang.Number <: java.lang.Object
 @deftype java.lang.Byte <: java.lang.Number
 @deftype java.lang.Short <: java.lang.Number
 @deftype java.lang.Integer <: java.lang.Number
 @deftype java.lang.Long <: java.lang.Number
 @deftype java.lang.Float <: java.lang.Number
 @deftype java.lang.Double <: java.lang.Number
+
+@deftype java.lang.String <: java.lang.Object
+@deftype java.lang.Throwable <: java.lang.Object
+@deftype java.util.Iterator <: interface

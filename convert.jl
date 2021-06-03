@@ -41,3 +41,16 @@ Base.convert(::Type{InstanceProxy}, ex::JavaException) = wrapped(ex.ref)
 
 # cast shortcut
 (cast_target::ImportProxy{T})(x) where {T} = convert(InstanceProxy{T}, x)
+
+# iterators
+const JIterator = InstanceProxy{typeTagForName("java.util.Iterator")}
+Base.iterate(itr::JIterator, state=nothing) =
+    if has_next(itr)
+        local o = itr.next()
+        # pass it through InstanceProxy() to convert it to its most specific form
+        return (InstanceProxy(o), state)
+    else
+        return nothing
+    end
+
+has_next(itr::JIterator) = itr.hasNext()
