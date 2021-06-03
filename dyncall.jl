@@ -31,7 +31,7 @@ end
 
 getvariantparamtypes(method_or_ctor::Union{JavaCall.JMethod, JavaCall.JConstructor}) =
     map(
-        t -> unwrapped(normalizeJavaType(t)),
+        t -> wrapped(normalizeJavaType(t)),
         JavaCall.getparametertypes(method_or_ctor)
     )
 

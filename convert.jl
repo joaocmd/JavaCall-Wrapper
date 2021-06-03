@@ -4,7 +4,14 @@ Base.convert(::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = begin
     local targetclassname = targetmod.name
 
     # will throw exception if cast is impossible
-    local ref = convert(JavaCall.JavaObject{Symbol(targetclassname)}, getfield(inst, :ref))
+    local ref = convert(JavaCall.JavaObject{Symbol(targetclassname)}, getfield(x, :ref))
+    InstanceProxy{typeTagForName(targetclassname)}(ref, targetmod)
+end
+Base.convert(::Type{InstanceProxy{T}}, ::Nothing) where {T} = begin
+    local targetmod = javaImport(T).δmod
+    local targetclassname = targetmod.name
+
+    local ref = JavaCall.JavaObject{Symbol(targetclassname)}(JavaCall.J_NULL)
     InstanceProxy{typeTagForName(targetclassname)}(ref, targetmod)
 end
 
@@ -54,3 +61,5 @@ Base.iterate(itr::JIterator, state=nothing) =
     end
 
 has_next(itr::JIterator) = itr.hasNext()
+
+# TODO: check remaining JavaCall conversions

@@ -18,12 +18,8 @@ using JavaCall: JavaObject # why is this needed?
 
 init(args...) = JavaCall.init(args...)
 
-macro jimport(class::Expr)
+macro jimport(class::Union{Expr, Symbol})
     class = sprint(Base.show_unquoted, class)
-    :(javaImport($class))
-end
-macro jimport(class::Symbol)
-    class = string(class)
     :(javaImport($class))
 end
 macro jimport(class::AbstractString)

@@ -7,10 +7,10 @@ Base.show(io::IO, obj::JavaCall.JavaObject) =
         print(io, JavaCall.jcall(obj, "toString", JavaCall.JString, ()))
     end
 Base.show(io::IO, js::JavaCall.JString) =
-    if JavaCall.isnull(obj)
-        show(io, "null")
+    if JavaCall.isnull(js)
+        print(io, "null")
     else
-        show(io, convert(AbstractString, js))
+        print(io, convert(AbstractString, js))
     end
 
 struct ImportProxy{T <: JavaTypeTag}
