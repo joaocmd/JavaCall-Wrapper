@@ -1,19 +1,12 @@
-(cast_target::ImportProxy)(inst::InstanceProxy) = begin
-    local targetmod = getfield(cast_target, :mod)
+# regular Object -> Object casting
+Base.convert(::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = begin
+    local targetmod = javaImport(T).δmod
     local targetclassname = targetmod.name
 
     # will throw exception if cast is impossible
     local ref = convert(JavaCall.JavaObject{Symbol(targetclassname)}, getfield(inst, :ref))
     InstanceProxy{typeTagForName(targetclassname)}(ref, targetmod)
 end
-(cast_target::ImportProxy)(::Nothing) = begin # nulls are compatible with every type
-    local targetmod = getfield(cast_target, :mod)
-    local targetclassname = targetmod.name
-    local ref = convert(JavaCall.JavaObject{Symbol(targetclassname)}, nothing)
-    InstanceProxy{typeTagForName(targetclassname)}(ref, targetmod)
-end
-
-Base.convert(::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = javaImport(_classnameFromTypeTagSymbol(T))(x)
 
 macro boxingConv(e::Expr)
     local unboxed = string(e.args[2])
@@ -45,3 +38,6 @@ Base.convert(::Type{Char}, x::InstanceProxy{typeTagForName("java.lang.Character"
 
 # Exception proxy stuff
 Base.convert(::Type{InstanceProxy}, ex::JavaException) = wrapped(ex.ref)
+
+# cast shortcut
+(cast_target::ImportProxy{T})(x) where {T} = convert(InstanceProxy{T}, x)

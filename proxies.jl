@@ -13,7 +13,7 @@ Base.show(io::IO, js::JavaCall.JString) =
         show(io, convert(AbstractString, js))
     end
 
-struct ImportProxy
+struct ImportProxy{T <: JavaTypeTag}
     mod::Module
 end
 

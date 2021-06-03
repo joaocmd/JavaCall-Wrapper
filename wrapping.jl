@@ -1,3 +1,24 @@
+InstanceProxy(ref::JavaCall.JavaObject{T}) where {T} = begin
+    local classname = string(T)
+    local mod = javaImport(classname).δmod
+
+    InstanceProxy{typeTagForName(classname)}(ref, mod)
+end
+
+InstanceProxy(inst::InstanceProxy) = begin
+    local classname = inst.getClass().getName()
+    local mod = javaImport(classname).δmod
+
+    InstanceProxy{typeTagForName(classname)}(inst.δref, mod)
+end
+
+ImportProxy(::Type{JavaCall.JavaObject{T}}) where {T} = begin
+    local classname = string(T)
+    local mod = javaImport(classname).δmod
+
+    ImportProxy{typeTagForName(classname)}(mod)
+end
+
 normalizeJavaType(name) =
     if name == "short" || name == "java.lang.Short"
         JavaCall.jshort
@@ -42,16 +63,12 @@ unwrapped(::Type{InstanceProxy}) = JavaCall.JavaObject
 unwrapped(::Type{Array{T, N}}) where {T, N} = Array{unwrapped(T), N}
 
 wrapped(x::Union{InstanceProxy, java_primitive_types, String}) = x
-wrapped(x::JavaCall.JavaObject{C}) where {C} = begin
+wrapped(x::JavaCall.JavaObject{C}) where {C} =
     if JavaCall.isnull(x)
-        return nothing
+        nothing
+    else
+        InstanceProxy(x)
     end
-
-    local classname = string(C)
-    local mod = getfield(javaImport(classname), :mod)
-
-    InstanceProxy{typeTagForName(classname)}(x, mod)
-end
 wrapped(x::Array{T, N}) where {T, N} = map(wrapped, x)
 wrapped(x::UInt8) = Bool(x) # kinda ugly, but nothing else is a UInt8
 wrapped(x::UInt16) = Char(x) # kinda ugly, but nothing else is a UInt16

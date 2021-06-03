@@ -173,11 +173,12 @@ loadJavaClass(classname::String) = begin
 end
 
 javaImport(x) = javaImport(string(x))
+javaImport(t::Type{<: JavaTypeTag}) = javaImport(_classnameFromTypeTagSymbol(t))
 javaImport(classname::String) = begin
     if ! Base.isdefined(Main.BetterJavaCall, Symbol(javaClassModuleName(classname)))
         loadJavaClass(classname)
     end
 
     mod = eval(Symbol(javaClassModuleName(classname)))
-    ImportProxy(mod)
+    ImportProxy{typeTagForName(classname)}(mod)
 end
