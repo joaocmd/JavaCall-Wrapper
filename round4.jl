@@ -3,7 +3,7 @@
 
 ##
 module BetterJavaCall
-export ImportProxy, InstanceProxy, @jimport
+export ImportProxy, InstanceProxy, @jimport, @jnew
 
 include("javacall_patch.jl")
 include("type_tags.jl")
@@ -24,6 +24,13 @@ macro jimport(class::Union{Expr, Symbol})
 end
 macro jimport(class::AbstractString)
     :(javaImport($class))
+end
+
+macro jnew(expr::Expr)
+    @assert expr.head == :call
+    local name = expr.args[1]
+    local args = expr.args[2:end]
+    :( $(esc(name)).new($(args...)))
 end
 
 
