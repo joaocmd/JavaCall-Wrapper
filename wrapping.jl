@@ -38,16 +38,23 @@ normalizeJavaType(name) =
         JavaCall.jboolean # UInt8
     elseif name == "void" || name == "java.lang.Void"
         JavaCall.jvoid
-    elseif (m = Base.match(r"[^\][]+((\[])+)", name); typeof(m) != Nothing)
-        local n = m.captures[1].ncodeunits ÷ 2
-        local name_len = length(name) - m.captures[1].ncodeunits
-        Array{normalizeJavaType(SubString(name, 1:name_len)),n}
+    elseif (m = Base.match(r"([^\[\]]+)([\[\]]+)", name); typeof(m) != Nothing)
+        local component = normalizeJavaType(m.captures[1])
+        local n = length(m.captures[2]) ÷ 2
+        eval(_nestedvector(component, n))
     else
         JavaCall.JavaObject{Symbol(name)}
     end
 
 normalizeJavaType(x::JavaCall.JClass) =
     normalizeJavaType(JavaCall.getname(x))
+
+_nestedvector(component::Type, n::Integer) =
+    if n == 1
+        :( Vector{$component} )
+    else
+        :( Vector{$(_nestedvector(component, n-1))} )
+    end
 
 java_primitive_types = Core.Union{Int8, Int16, Int32, Int64, Float32, Float64, Nothing}
 
