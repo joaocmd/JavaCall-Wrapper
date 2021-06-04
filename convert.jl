@@ -7,6 +7,13 @@ Base.convert(::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = begin
     local ref = convert(JavaCall.JavaObject{Symbol(targetclassname)}, getfield(x, :ref))
     InstanceProxy{T}(ref, targetmod)
 end
+
+# fast-path for subclasses, where static casts are safe
+Base.convert(::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U <: T} = begin
+    local targetmod = javaImport(T).δmod
+    InstanceProxy{T}(targetmod.jc_class(x.δref.ref), targetmod)
+end
+
 Base.convert(::Type{InstanceProxy{T}}, ::Nothing) where {T} = begin
     local targetmod = javaImport(T).δmod
     local targetclassname = targetmod.name
@@ -69,5 +76,8 @@ Base.iterate(itr::JIterator, state=nothing) =
     end
 
 has_next(itr::JIterator) = itr.hasNext()
+
+# class hierarchy promotion rules
+promote_rule(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U <: T} = InstanceProxy{T}
 
 # TODO: check remaining JavaCall conversions

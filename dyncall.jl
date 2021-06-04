@@ -10,8 +10,24 @@ arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U} = b
     metaclassT.isAssignableFrom(metaclassU)
 end
 
-method_is_applicable(paramtypes::Vector{DataType}, args...) =
-    all(map(((p, a)::Tuple) -> arg_is_compatible(p, a), zip(paramtypes, args)))
+method_is_applicable(paramtypes::Vector{<: Type}, is_varargs::Bool, args...) =
+    if length(paramtypes) < length(args) && is_varargs
+        # check non-varargs
+        if !all(map(((p, a)::Tuple) -> arg_is_compatible(p, a), zip(paramtypes[1:end-1], args[1:end-1])))
+            return false
+        end
+
+        arg_is_compatible(paramtypes[end], [el for el in args[length(paramtypes):end]])
+    elseif length(paramtypes) == length(args)
+        # check all but last arg/param
+        if !all(map(((p, a)::Tuple) -> arg_is_compatible(p, a), zip(paramtypes[1:end-1], args[1:end-1])))
+            return false
+        end
+
+        arg_is_compatible(paramtypes[end], args[end]) || (is_varargs && arg_is_compatible(paramtypes[end], [args[end]]))
+    else
+        false
+    end
 
 arg_type_lt(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U} = begin
     local metaclassT = javaMetaclass(_classnameFromTypeTagSymbol(T))
@@ -20,7 +36,17 @@ arg_type_lt(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U} = b
     !metaclassT.isAssignableFrom(metaclassU) && metaclassU.isAssignableFrom(metaclassT)
 end
 
-variant_arg_types_lt(argtypes1::Vector{DataType}, argtypes2::Vector{DataType}) = begin
+variant_lt(v1::Tuple, v2::Tuple) = begin
+    local v1_isvarargs = isvarargs(v1[1])
+    local v2_isvarargs = isvarargs(v2[1])
+    local v1paramcount = v1_isvarargs ? length(v1[2]) - 1 : length(v1[2])
+    local v2paramcount = v2_isvarargs ? length(v2[2]) - 1 : length(v2[2])
+
+    variant_arg_types_lt(v1[2], v2[2]) ||
+        v1paramcount < v2paramcount ||
+        v1_isvarargs && !v2_isvarargs
+end
+variant_arg_types_lt(argtypes1::Vector{<: Type}, argtypes2::Vector{<: Type}) = begin
     for (a, b) in zip(argtypes1, argtypes2)
         if !arg_type_lt(a, b)
             return false
@@ -38,13 +64,13 @@ getvariantparamtypes(method_or_ctor::Union{JavaCall.JMethod, JavaCall.JConstruct
 
 choosevariant(variants::Vector{T}, args...) where {T <: Union{JavaCall.JMethod, JavaCall.JConstructor}} = begin
     variants = map(v -> (v, getvariantparamtypes(v)), variants)
-    local applicable = filter(v -> method_is_applicable(v[2], args...), variants)
+    local applicable = filter(v -> method_is_applicable(v[2], isvarargs(v[1]), args...), variants)
     if isempty(applicable)
-        return (nothing, nothing)
+        return nothing
     end
 
-    sort!(applicable, lt=variant_arg_types_lt, by=v -> v[2])
-    last(applicable) # (variant, paramtypes)
+    sort!(applicable, lt=variant_lt)
+    last(applicable)[1] # just return the variant (method/constructor)
 end
 
 dyncallmethod(recv::Type{JavaCall.JavaObject{C}}, name::String, args...) where {C} =
@@ -52,11 +78,9 @@ dyncallmethod(recv::Type{JavaCall.JavaObject{C}}, name::String, args...) where {
 dyncallmethod(recv::JavaCall.JavaObject{C}, name::String, args...) where {C} =
     dyncallmethod(recv, typeof(recv), name, args...)
 dyncallmethod(recv, t::Type{JavaCall.JavaObject{C}}, name::String, args...) where {C} = begin
-    local unwrappedargs = map(unwrapped, args)
-
-    local (method, paramtypes) = choosevariant(
+    local method = choosevariant(
         filter(m -> JavaCall.getname(m) == name, JavaCall.listmethods(t)),
-        unwrappedargs...
+        args...
     )
     if method === nothing
         Base.error("No matching method call for arguments $(Tuple(map(typeof, args)))")
@@ -64,14 +88,15 @@ dyncallmethod(recv, t::Type{JavaCall.JavaObject{C}}, name::String, args...) wher
 
     local rettype = normalizeJavaType(JavaCall.getreturntype(method))
 
-    local res = JavaCall.jcall(recv, name, rettype, Tuple(paramtypes), unwrappedargs...)
+    local paramtypes = Tuple(map(normalizeJavaType, JavaCall.getparametertypes(method)))
+    args = dyncall_fixargs(method, paramtypes, args)
+    local res = JavaCall.jcall(recv, name, rettype, paramtypes, args...)
     wrapped(res)
 end
 
 dyncallctor(classname::String, args...) = begin
-    args = map(unwrapped, args)
     local metaclass = JavaCall.classforname(classname)
-    local (_, paramtypes) = choosevariant(
+    local ctor = choosevariant(
         JavaCall.jcall(metaclass, "getConstructors", Vector{JavaCall.JConstructor}, ()),
         args...
     )
@@ -79,6 +104,24 @@ dyncallctor(classname::String, args...) = begin
         Base.error("No matching constructor call for arguments $(Tuple(map(typeof, args)))")
     end
 
-    local res = JavaCall.jnew(Symbol(classname), Tuple(paramtypes), args...)
+    local paramtypes = Tuple(map(normalizeJavaType, JavaCall.getparametertypes(ctor)))
+    args = dyncall_fixargs(ctor, paramtypes, args)
+    local res = JavaCall.jnew(Symbol(classname), paramtypes, args...)
     wrapped(res)
 end
+
+dyncall_fixargs(method, paramtypes, args) = begin
+    if isvarargs(method) && (length(args) > length(paramtypes) || _vanestlvl(args[end]) == _vanestlvl(paramtypes[end]) || args[end] isa Tuple)
+        local normalargs = Vector{Any}([a for a in args[1:length(paramtypes)-1]])
+        local vatype = wrapped(componenttype(paramtypes[end]))
+        local varargs = [va for va in vaconvert(vatype, args[length(paramtypes):end])]
+        push!(normalargs, varargs)
+        args = normalargs
+    end
+
+    map(unwrapped, args)
+end
+
+_vanestlvl(::T) where {T} = _vanestlvl(T)
+_vanestlvl(::Type{Vector{T}}) where {T} = 1 + _vanestlvl(T)
+_vanestlvl(::Type{T}) where {T} = 0
