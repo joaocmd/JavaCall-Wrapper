@@ -6,10 +6,15 @@ isassignablefrom(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U
     Bool(JavaCall.jcall(metaclassT, "isAssignableFrom", JavaCall.jboolean, (JavaCall.JClass,), metaclassU))
 end
 
-arg_is_compatible(t::Type, x) = applicable(Base.convert, t, x)
+
+arg_is_compatible(::Type{Vector{T}}, x::Vector) where {T} =
+    all(Iterators.map(arg_is_compatible, Iterators.cycle([T]), x))
+arg_is_compatible(::Type{Vector{T}}, x) where {T} = false
 # fast-path for superclasses
 arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U <: T} = true
 arg_is_compatible(t::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = isassignablefrom(t, x)
+
+arg_is_compatible(t::Type, x) = applicable(Base.convert, t, x)
 
 method_is_applicable(paramtypes::Vector{<: Type}, is_varargs::Bool, args...) =
     if length(paramtypes) < length(args) && is_varargs

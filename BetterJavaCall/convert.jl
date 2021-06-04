@@ -26,17 +26,36 @@ macro boxingConv(e::Expr)
     local unboxed = string(e.args[2])
     local boxed = string(e.args[3])
 
-    local jc_type = :( JavaCall.$(Symbol("j" * unboxed)) )
+    local ptype = :( JavaCall.$(Symbol("j" * unboxed)) )
     local tt = typeTagForName(boxed)
     local boxed_type = InstanceProxy{tt}
+
+    local unboxed_to_boxed_conv = begin
+        local T = tt
+        local decls = []
+
+        while T !== JavaTypeTag
+            local classname = _classnameFromTypeTagSymbol(T)
+            local jc_type = JavaCall.JavaObject{Symbol(classname)}
+
+            push!(decls, quote
+                # JavaCall should be able to convert more stuff hehe
+                Base.convert(::Type{$jc_type}, x::$ptype) = $jc_type(boxed(x).δref.ref)
+                Base.convert(::Type{InstanceProxy{$T}}, x::$ptype) = boxed(x)
+            end)
+
+            T = supertype(T)
+        end
+        decls
+    end
     esc(quote
-        boxed(x::$jc_type) = Base.invokelatest(javaImport($boxed).valueOf, x)
-        boxed(::Type{$jc_type}) = $boxed_type
+        boxed(x::$ptype) = Base.invokelatest(javaImport($boxed).valueOf, x)
+        boxed(::Type{$ptype}) = $boxed_type
         unboxed(x::$boxed_type) = x.$(Symbol(unboxed * "Value"))()
-        unboxed(x::$jc_type) = x
-        Base.convert(::Type{$boxed_type}, x::$jc_type) = boxed(x)
-        Base.convert(::Type{$jc_type}, x::$boxed_type) = unboxed(x)
-        Base.promote_rule(::Type{$boxed_type}, ::Type{$jc_type}) = $boxed_type
+        unboxed(x::$ptype) = x
+        $(unboxed_to_boxed_conv...)
+        Base.convert(::Type{$ptype}, x::$boxed_type) = unboxed(x)
+        Base.promote_rule(::Type{$boxed_type}, ::Type{$ptype}) = $boxed_type
     end)
 end
 
@@ -56,11 +75,17 @@ boxed(x::String) = javaImport("java.lang.String")(x)
 @boxingConv double - java.lang.Double
 
 # additional conversions for quality of life
+Base.convert(t::Type{InstanceProxy{typeTagForName("java.lang.Object")}}, x::AbstractString) =
+    convert(t, convert(InstanceProxy{typeTagForName("java.lang.String")}, x))
+Base.convert(t::Type{InstanceProxy{typeTagForName("java.lang.CharSequence")}}, x::AbstractString) =
+    convert(t, convert(InstanceProxy{typeTagForName("java.lang.String")}, x))
 Base.convert(::Type{InstanceProxy{typeTagForName("java.lang.String")}}, x::AbstractString) = wrapped(JavaCall.JString(x))
 Base.convert(::Type{AbstractString}, x::InstanceProxy{typeTagForName("java.lang.String")}) = Base.convert(AbstractString, getfield(x, :ref))
+
 Base.convert(t::Type{InstanceProxy{typeTagForName("java.lang.Boolean")}}, x::Bool) = Base.convert(t, JavaCall.jboolean(x))
 boxed(::Type{Bool}) = InstanceProxy{typeTagForName("java.lang.Boolean")}
 Base.convert(::Type{Bool}, x::InstanceProxy{typeTagForName("java.lang.Boolean")}) = Bool(x.booleanValue())
+
 Base.convert(t::Type{InstanceProxy{typeTagForName("java.lang.Character")}}, x::Char) = Base.convert(t, JavaCall.jchar(x))
 boxed(::Type{Char}) = InstanceProxy{typeTagForName("java.lang.Character")}
 Base.convert(::Type{Char}, x::InstanceProxy{typeTagForName("java.lang.Character")}) = Char(x.charValue())
@@ -83,8 +108,3 @@ Base.iterate(itr::JIterator, state=nothing) =
     end
 
 has_next(itr::JIterator) = itr.hasNext()
-
-# class hierarchy promotion rules
-promote_rule(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U <: T} = InstanceProxy{T}
-
-# TODO: check remaining JavaCall conversions

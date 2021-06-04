@@ -54,8 +54,8 @@ end
 
 Base.propertynames(proxy::ImportProxy) = union(
     (:class,),
-    Base.propertynames(proxy.δmod.static_methods),
-    Base.propertynames(proxy.δmod.static_fields),
+    propertynames(proxy.δmod.static_methods),
+    propertynames(proxy.δmod.static_fields),
     Base.isdefined(proxy.δmod, :new) ? (:new,) : (),
 )
 
@@ -101,8 +101,8 @@ Base.getproperty(proxy::InstanceProxy, sym::Symbol) = begin
 end
 
 Base.propertynames(proxy::InstanceProxy) = union(
-    Base.propertynames(proxy.δmod.instance_methods),
-    Base.propertynames(proxy.δmod.instance_fields)
+    propertynames(proxy.δmod.instance_methods),
+    propertynames(proxy.δmod.instance_fields)
 )
 
 Base.setproperty!(proxy::InstanceProxy, sym::Symbol, v::Any) = begin
@@ -132,7 +132,7 @@ Base.setproperty!(ex::JavaException, sym::Symbol, val) =
 Base.propertynames(ex::JavaException) = begin
     # do try to make autocomplete better, but fail gracefully if errors occur
     local inner_names = try
-        Base.propertynames(wrapped(ex.ref))
+        propertynames(wrapped(ex.ref))
     catch
         ()
     end

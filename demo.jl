@@ -61,7 +61,7 @@ Math.sin(pi / 2)
 
 Arrays = @jimport java.util.Arrays
 Arrays.binarySearch([10, 20, 30, 40, 50, 60], 40)
-Arrays.copyOf([JString("asd")], Int32(10))
+Arrays.copyOf([JString("asd")], 10)
 
 ## Docs examples - Reflection API
 HashMap = @jimport java.util.HashMap

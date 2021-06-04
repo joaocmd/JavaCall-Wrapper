@@ -59,5 +59,6 @@ end
 @deftype java.lang.Double <: java.lang.Number
 
 @deftype java.lang.String <: java.lang.Object
+@deftype java.lang.CharSequence <: interface
 @deftype java.lang.Throwable <: java.lang.Object
 @deftype java.util.Iterator <: interface
