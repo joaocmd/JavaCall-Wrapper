@@ -33,6 +33,7 @@ macro boxingConv(e::Expr)
     local boxed_type = InstanceProxy{tt}
     esc(quote
         boxed(x::$jc_type) = Base.invokelatest(javaImport($boxed).valueOf, x)
+        boxed(::Type{$jc_type}) = $boxed_type
         unboxed(x::$boxed_type) = x.$(Symbol(unboxed * "Value"))()
         unboxed(x::$jc_type) = x
         Base.convert(::Type{$boxed_type}, x::$jc_type) = boxed(x)
@@ -42,6 +43,7 @@ macro boxingConv(e::Expr)
 end
 
 boxed(x::InstanceProxy) = x
+boxed(t::Type{InstanceProxy}) = t
 
 # not strictly boxing, but JavaCall gets in our way with this
 boxed(x::String) = javaImport("java.lang.String")(x)
@@ -59,8 +61,10 @@ boxed(x::String) = javaImport("java.lang.String")(x)
 Base.convert(::Type{InstanceProxy{typeTagForName("java.lang.String")}}, x::AbstractString) = wrapped(JavaCall.JString(x))
 Base.convert(::Type{AbstractString}, x::InstanceProxy{typeTagForName("java.lang.String")}) = Base.convert(AbstractString, getfield(x, :ref))
 Base.convert(t::Type{InstanceProxy{typeTagForName("java.lang.Boolean")}}, x::Bool) = Base.convert(t, JavaCall.jboolean(x))
+boxed(::Type{Bool}) = InstanceProxy{typeTagForName("java.lang.Boolean")}
 Base.convert(::Type{Bool}, x::InstanceProxy{typeTagForName("java.lang.Boolean")}) = Bool(x.booleanValue())
 Base.convert(t::Type{InstanceProxy{typeTagForName("java.lang.Character")}}, x::Char) = Base.convert(t, JavaCall.jchar(x))
+boxed(::Type{Char}) = InstanceProxy{typeTagForName("java.lang.Character")}
 Base.convert(::Type{Char}, x::InstanceProxy{typeTagForName("java.lang.Character")}) = Char(x.charValue())
 
 # Exception proxy stuff

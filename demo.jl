@@ -61,6 +61,7 @@ Math.sin(pi / 2)
 
 Arrays = @jimport java.util.Arrays
 Arrays.binarySearch([10, 20, 30, 40, 50, 60], 40)
+Arrays.copyOf([JString("asd")], Int32(10))
 
 ## Docs examples - Reflection API
 HashMap = @jimport java.util.HashMap
@@ -83,6 +84,7 @@ for word in words.iterator() # .iterator() is an ArrayList method
 end
 
 ## varargs
+JObject = @jimport java.lang.Object
 
 list = Arrays.asList(1, 2, 3, 4, 5)
 println(list)
@@ -90,7 +92,7 @@ println(JObject(list).getClass().getName())
 
 ## Exceptions
 try
-    println("will now trigger an exception and print its type and stacktrace")
+    @warn "will now trigger an exception and print its type and stacktrace"
     URL.new("malformed url")
 catch ex
     println(typeof(ex))
@@ -102,4 +104,5 @@ catch ex
     println(typeof(proxy))
 end
 
+@warn "will now let the same exception go through"
 URL.new("malformed url") # Error includes java stack trace information

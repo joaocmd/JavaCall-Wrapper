@@ -29,12 +29,17 @@ method_is_applicable(paramtypes::Vector{<: Type}, is_varargs::Bool, args...) =
         false
     end
 
+arg_type_lt(::Type{Vector{T}}, ::Type{Vector{U}}) where {T, U} = arg_type_lt(T, U)
 arg_type_lt(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U} = begin
     local metaclassT = javaMetaclass(_classnameFromTypeTagSymbol(T))
     local metaclassU = javaMetaclass(_classnameFromTypeTagSymbol(U))
 
     !metaclassT.isAssignableFrom(metaclassU) && metaclassU.isAssignableFrom(metaclassT)
 end
+arg_type_lt(t::Type{InstanceProxy{T}}, ::Type{U}) where {T, U} = arg_type_lt(t, boxed(U))
+arg_type_lt(::Type{T}, u::Type{InstanceProxy{U}}) where {T, U} = arg_type_lt(boxed(T), u)
+arg_type_lt(::Type{T}, ::Type{U}) where {U, T <: U} = true
+arg_type_lt(::Type{T}, ::Type{U}) where {T, U} = false
 
 variant_lt(v1::Tuple, v2::Tuple) = begin
     local v1_isvarargs = isvarargs(v1[1])
