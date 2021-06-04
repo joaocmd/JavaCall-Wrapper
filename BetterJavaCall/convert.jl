@@ -22,8 +22,6 @@ Base.convert(::Type{InstanceProxy{T}}, ::Nothing) where {T} = begin
     InstanceProxy{T}(ref, targetmod)
 end
 
-Base.convert(t::Type{InstanceProxy{T}}, primitive) where {T} = convert(t, boxed(primitive))
-
 macro boxingConv(e::Expr)
     local unboxed = string(e.args[2])
     local boxed = string(e.args[3])

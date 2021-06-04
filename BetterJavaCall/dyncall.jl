@@ -1,14 +1,15 @@
-javaMetaclass(c) = javaMetaclass(string(c))
-javaMetaclass(classname::String) = wrapped(JavaCall.classforname(classname))
-
-arg_is_compatible(t::Type, x) = applicable(Base.convert, t, x)
-# fast-path for superclasses
-arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U <: T} = true
-arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U} = begin
+isassignablefrom(t::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = isassignablefrom(t, typeof(x))
+isassignablefrom(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U <: T} = true
+isassignablefrom(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U} = begin
     local metaclassT = JavaCall.classforname(_classnameFromTypeTagSymbol(T))
     local metaclassU = JavaCall.classforname(_classnameFromTypeTagSymbol(U))
     Bool(JavaCall.jcall(metaclassT, "isAssignableFrom", JavaCall.jboolean, (JavaCall.JClass,), metaclassU))
 end
+
+arg_is_compatible(t::Type, x) = applicable(Base.convert, t, x)
+# fast-path for superclasses
+arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U <: T} = true
+arg_is_compatible(t::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = isassignablefrom(t, x)
 
 method_is_applicable(paramtypes::Vector{<: Type}, is_varargs::Bool, args...) =
     if length(paramtypes) < length(args) && is_varargs
@@ -30,14 +31,10 @@ method_is_applicable(paramtypes::Vector{<: Type}, is_varargs::Bool, args...) =
     end
 
 arg_type_lt(::Type{Vector{T}}, ::Type{Vector{U}}) where {T, U} = arg_type_lt(T, U)
-arg_type_lt(::Type{InstanceProxy{T}}, ::Type{InstanceProxy{U}}) where {T, U} = begin
-    local metaclassT = javaMetaclass(_classnameFromTypeTagSymbol(T))
-    local metaclassU = javaMetaclass(_classnameFromTypeTagSymbol(U))
-
-    !metaclassT.isAssignableFrom(metaclassU) && metaclassU.isAssignableFrom(metaclassT)
-end
-arg_type_lt(t::Type{InstanceProxy{T}}, ::Type{U}) where {T, U} = arg_type_lt(t, boxed(U))
-arg_type_lt(::Type{T}, u::Type{InstanceProxy{U}}) where {T, U} = arg_type_lt(boxed(T), u)
+arg_type_lt(t::Type{InstanceProxy{T}}, u::Type{InstanceProxy{U}}) where {T, U} =
+    !isassignablefrom(t, u) && isassignablefrom(u, t)
+arg_type_lt(t::Type{InstanceProxy{T}}, ::Type{U}) where {T, U} = true
+arg_type_lt(::Type{T}, u::Type{InstanceProxy{U}}) where {T, U} = false
 arg_type_lt(::Type{T}, ::Type{U}) where {U, T <: U} = true
 arg_type_lt(::Type{T}, ::Type{U}) where {T, U} = false
 
