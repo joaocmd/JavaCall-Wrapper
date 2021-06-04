@@ -1,7 +1,7 @@
 abstract type JavaTypeTag end
 
 _typeTagSymbolForName(name::String) = Symbol("JavaTypeTag" * name)
-_classnameFromTypeTagSymbol(t::Type{<: JavaTypeTag}) = split(String(Base.nameof(t)), "JavaTypeTag", limit=2)[2]
+_classnameFromTypeTagSymbol(t::Type{<: JavaTypeTag}) = string(split(String(Base.nameof(t)), "JavaTypeTag", limit=2)[2])
 
 _typeTagDecl_promote(x::String) = _typeTagSymbolForName(x)
 _typeTagDecl_promote(x::Symbol) = x

@@ -80,14 +80,14 @@ Base.getproperty(proxy::InstanceProxy, sym::Symbol) = begin
     elseif sym == :δmethods
         # bind methods to this instance
         NamedTuple(map(
-            p -> (p.first, (args...) -> p.second(this, args...)),
-            pairs(proxy.δmod.instance_methods)
+            name -> (name, (args...) -> getfield(proxy.δmod.instance_methods, name)(this, args...)),
+            keys(proxy.δmod.instance_methods)
         ))
     elseif sym == :δfields
         # bind field getters to this instance
         NamedTuple(map(
-            p -> (p.first, p.second(this)),
-            pairs(proxy.δmod.instance_fields)
+            name -> (name, getfield(proxy.δmod.instance_fields, name)(this)),
+            keys(proxy.δmod.instance_fields)
         ))
     elseif hasproperty(proxy.δmod.instance_methods, sym)
         local method = getfield(proxy.δmod.instance_methods, sym)
@@ -119,14 +119,14 @@ Base.getproperty(ex::JavaException, sym::Symbol) =
     if sym ∈ (:msg, :ref)
         getfield(ex, sym)
     else
-        getfield(wrapped(ex.ref), sym)
+        getproperty(wrapped(ex.ref), sym)
     end
 
 Base.setproperty!(ex::JavaException, sym::Symbol, val) =
     if sym ∈ (:msg, :ref)
         setfield!(ex, sym, val)
     else
-        setfield!(wrapped(ex.ref), sym, val)
+        setproperty!(wrapped(ex.ref), sym, val)
     end
 
 Base.propertynames(ex::JavaException) = begin

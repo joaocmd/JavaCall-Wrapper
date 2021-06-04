@@ -5,9 +5,9 @@ arg_is_compatible(t::Type, x) = applicable(Base.convert, t, x)
 # fast-path for superclasses
 arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U <: T} = true
 arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U} = begin
-    local metaclassT = javaMetaclass(_classnameFromTypeTagSymbol(T))
-    local metaclassU = javaMetaclass(_classnameFromTypeTagSymbol(U))
-    metaclassT.isAssignableFrom(metaclassU)
+    local metaclassT = JavaCall.classforname(_classnameFromTypeTagSymbol(T))
+    local metaclassU = JavaCall.classforname(_classnameFromTypeTagSymbol(U))
+    Bool(JavaCall.jcall(metaclassT, "isAssignableFrom", JavaCall.jboolean, (JavaCall.JClass,), metaclassU))
 end
 
 method_is_applicable(paramtypes::Vector{<: Type}, is_varargs::Bool, args...) =
@@ -100,7 +100,7 @@ dyncallctor(classname::String, args...) = begin
         JavaCall.jcall(metaclass, "getConstructors", Vector{JavaCall.JConstructor}, ()),
         args...
     )
-    if paramtypes === nothing
+    if ctor === nothing
         Base.error("No matching constructor call for arguments $(Tuple(map(typeof, args)))")
     end
 

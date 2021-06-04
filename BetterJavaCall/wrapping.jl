@@ -58,3 +58,6 @@ wrapped_paramtype(::Union{Type{JavaCall.JavaObject{Symbol("java.lang.String")}},
     Nothing,
 }
 wrapped_paramtype(::Type{JavaCall.JavaObject{C}}) where {C} = Union{InstanceProxy{<: typeTagForName(string(C))}, Nothing}
+
+Base.convert(t::Type{JavaCall.@jimport java.lang.CharSequence}, x::JavaCall.JString) = t(x.ref)
+Base.convert(t::Type{JavaCall.@jimport java.lang.CharSequence}, x::String) = t(JavaCall.JString(x).ref)
