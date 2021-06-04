@@ -95,6 +95,8 @@ Base.convert(::Type{InstanceProxy}, ex::JavaException) = wrapped(ex.ref)
 
 # cast shortcut
 (cast_target::ImportProxy{T})(x) where {T} = convert(InstanceProxy{T}, x)
+(::Type{InstanceProxy{T}})(x) where {T} = convert(InstanceProxy{T}, x)
+InstanceProxy(ex::JavaException) = convert(InstanceProxy, ex)
 
 # iterators
 const JIterator = InstanceProxy{typeTagForName("java.util.Iterator")}
