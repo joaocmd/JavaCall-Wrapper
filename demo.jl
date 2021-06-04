@@ -1,4 +1,4 @@
-include("BetterJavaCall/BetterJavaCall.jl")
+include("src/BetterJavaCall.jl")
 using .BetterJavaCall
 ##
 BetterJavaCall.init(["-Xmx128M"])
