@@ -33,9 +33,9 @@ Base.getproperty(proxy::ImportProxy, sym::Symbol) = begin
         wrapped(proxy.δmod.class)
     elseif sym == :new
         proxy.δmod.new
-    elseif haskey(proxy.δmod.static_methods, sym)
+    elseif hasproperty(proxy.δmod.static_methods, sym)
         getfield(proxy.δmod.static_methods, sym)
-    elseif haskey(proxy.δmod.static_fields, sym)
+    elseif hasproperty(proxy.δmod.static_fields, sym)
         getfield(proxy.δmod.static_fields, sym)() # call the getter
     else
         local classname = proxy.δmod.name
@@ -44,7 +44,7 @@ Base.getproperty(proxy::ImportProxy, sym::Symbol) = begin
 end
 
 Base.setproperty!(proxy::ImportProxy, sym::Symbol, v::Any) = begin
-    if haskey(proxy.δmod.static_fields, sym)
+    if hasproperty(proxy.δmod.static_fields, sym)
         getfield(proxy.δmod, sym)(v) # call the setter
     else
         local classname = proxy.δmod.name
@@ -89,10 +89,10 @@ Base.getproperty(proxy::InstanceProxy, sym::Symbol) = begin
             p -> (p.first, p.second(this)),
             pairs(proxy.δmod.instance_fields)
         ))
-    elseif haskey(proxy.δmod.instance_methods, sym)
+    elseif hasproperty(proxy.δmod.instance_methods, sym)
         local method = getfield(proxy.δmod.instance_methods, sym)
         (args...) -> method(this, args...)
-    elseif haskey(proxy.δmod.instance_fields, sym)
+    elseif hasproperty(proxy.δmod.instance_fields, sym)
         getfield(proxy.δmod.instance_fields, sym)(this)() # call the getter
     else
         local classname = proxy.δmod.name
@@ -107,7 +107,7 @@ Base.propertynames(proxy::InstanceProxy) = union(
 
 Base.setproperty!(proxy::InstanceProxy, sym::Symbol, v::Any) = begin
     local this = proxy.δref
-    if haskey(proxy.δmod.instance_fields, sym)
+    if hasproperty(proxy.δmod.instance_fields, sym)
         getfield(proxy.δmod.instance_fields, sym)(this)(v) # call the setter
     else
         local classname = proxy.δmod.name

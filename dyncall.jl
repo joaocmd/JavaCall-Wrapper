@@ -1,3 +1,4 @@
+javaMetaclass(c) = javaMetaclass(string(c))
 javaMetaclass(classname::String) = wrapped(JavaCall.classforname(classname))
 
 arg_is_compatible(t::Type, x) = applicable(Base.convert, t, x)
@@ -6,7 +7,7 @@ arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U <: T
 arg_is_compatible(::Type{InstanceProxy{T}}, ::InstanceProxy{U}) where {T, U} = begin
     local metaclassT = javaMetaclass(_classnameFromTypeTagSymbol(T))
     local metaclassU = javaMetaclass(_classnameFromTypeTagSymbol(U))
-    metaclassT.IsAssignableFrom(metaclassU)
+    metaclassT.isAssignableFrom(metaclassU)
 end
 
 method_is_applicable(paramtypes::Vector{DataType}, args...) =

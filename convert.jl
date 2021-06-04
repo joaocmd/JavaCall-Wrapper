@@ -5,14 +5,14 @@ Base.convert(::Type{InstanceProxy{T}}, x::InstanceProxy{U}) where {T, U} = begin
 
     # will throw exception if cast is impossible
     local ref = convert(JavaCall.JavaObject{Symbol(targetclassname)}, getfield(x, :ref))
-    InstanceProxy{typeTagForName(targetclassname)}(ref, targetmod)
+    InstanceProxy{T}(ref, targetmod)
 end
 Base.convert(::Type{InstanceProxy{T}}, ::Nothing) where {T} = begin
     local targetmod = javaImport(T).δmod
     local targetclassname = targetmod.name
 
     local ref = JavaCall.JavaObject{Symbol(targetclassname)}(JavaCall.J_NULL)
-    InstanceProxy{typeTagForName(targetclassname)}(ref, targetmod)
+    InstanceProxy{T}(ref, targetmod)
 end
 
 macro boxingConv(e::Expr)
@@ -20,11 +20,19 @@ macro boxingConv(e::Expr)
     local boxed = string(e.args[3])
 
     local jc_type = :( JavaCall.$(Symbol("j" * unboxed)) )
-    quote
-        Base.convert(::Type{InstanceProxy{typeTagForName($boxed)}}, x::$jc_type) = javaImport($boxed).valueOf(x)
-        Base.convert(::Type{$jc_type}, x::InstanceProxy{typeTagForName($boxed)}) = x.$(Symbol(unboxed * "Value"))()
-    end
+    local tt = typeTagForName(boxed)
+    local boxed_type = InstanceProxy{tt}
+    esc(quote
+        boxed(x::$jc_type) = Base.invokelatest(javaImport($boxed).valueOf, x)
+        unboxed(x::$boxed_type) = x.$(Symbol(unboxed * "Value"))()
+        unboxed(x::$jc_type) = x
+        Base.convert(::Type{$boxed_type}, x::$jc_type) = boxed(x)
+        Base.convert(::Type{$jc_type}, x::$boxed_type) = unboxed(x)
+        Base.promote_rule(::Type{$boxed_type}, ::Type{$jc_type}) = $boxed_type
+    end)
 end
+
+boxed(x::InstanceProxy) = x
 
 @boxingConv char - java.lang.Character
 @boxingConv boolean - java.lang.Boolean

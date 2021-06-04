@@ -30,9 +30,8 @@ macro jnew(expr::Expr)
     @assert expr.head == :call
     local name = expr.args[1]
     local args = expr.args[2:end]
-    :( $(esc(name)).new($(args...)))
+    esc(:( $name.new($(args...))))
 end
-
 
 end
 
@@ -48,4 +47,7 @@ tom = now.plusDays(1)
 println("now = ", now)
 println("tom = ", tom)
 println("tom.isAfter(now)? ", tom.isAfter(now))
+
+URL = @jimport java.net.URL
+Arrays = @jimport java.util.Arrays
 ##

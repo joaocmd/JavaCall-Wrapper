@@ -42,7 +42,7 @@ macro deftype(e)
         (e, :JavaTypeTag)
     end
 
-    _typeTagDecl(t, u)
+    esc(_typeTagDecl(t, u))
 end
 
 @deftype java.lang.Object
