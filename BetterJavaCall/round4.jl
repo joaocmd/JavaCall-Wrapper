@@ -36,18 +36,18 @@ end
 end
 
 ##
-using Main.BetterJavaCall
-BetterJavaCall.init(["-Xmx128M"])
-##
+# using Main.BetterJavaCall
+# BetterJavaCall.init(["-Xmx128M"])
+# ##
 
-LocalDate = @jimport java.time.LocalDate
+# LocalDate = @jimport java.time.LocalDate
 
-now = LocalDate.now()
-tom = now.plusDays(1)
-println("now = ", now)
-println("tom = ", tom)
-println("tom.isAfter(now)? ", tom.isAfter(now))
+# now = LocalDate.now()
+# tom = now.plusDays(1)
+# println("now = ", now)
+# println("tom = ", tom)
+# println("tom.isAfter(now)? ", tom.isAfter(now))
 
-URL = @jimport java.net.URL
-Arrays = @jimport java.util.Arrays
+# URL = @jimport java.net.URL
+# Arrays = @jimport java.util.Arrays
 ##
