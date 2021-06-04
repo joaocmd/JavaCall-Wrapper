@@ -18,8 +18,9 @@ println(now.equals(LocalDate.parse(now.toString())))
 println(now.equals(LocalDate.parse(JString(now.toString()))))
 
 ## Accessing fields
-println(Math.PI == pi) # they are slightly different ;)
-println(Math.abs(Math.PI - pi) < 0.1)
+println(Math.PI == pi) # they are not strictly equal ;)
+println(Math.abs(Math.PI - pi) < 1e-100)
+println(Math.abs(Math.PI - pi) < 1e-1000)
 
 # if the fields are not final, a setter is also available through
 # Math.PI = 1, (no example found)
@@ -45,12 +46,13 @@ URL.new                     # Constructor, also accessible through @jnew
 url.δmod                    # Same as above
 url.δref                    # Wrapped JavaCall.JObject for this object
 url.δmethods                # Instance methods
-
-pairs(URL.δmod.instance_methods)
+## error because pairs returns a Dictionary which is not iterable, use zip(keys(methods), methods)
 url.δfields                 # Instace fields
 proxy.δmod.static_methods
 
 ## Varargs, overloads, etc
+
+## Iterators
 
 ## Docs examples - Home
 Math.sin(pi / 2)
