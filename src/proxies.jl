@@ -53,7 +53,7 @@ Base.setproperty!(proxy::ImportProxy, sym::Symbol, v::Any) = begin
 end
 
 Base.propertynames(proxy::ImportProxy) = union(
-    (:class,),
+    (:class, :δmod, :δmethods, :δfields),
     propertynames(proxy.δmod.static_methods),
     propertynames(proxy.δmod.static_fields),
     Base.isdefined(proxy.δmod, :new) ? (:new,) : (),
@@ -101,6 +101,7 @@ Base.getproperty(proxy::InstanceProxy, sym::Symbol) = begin
 end
 
 Base.propertynames(proxy::InstanceProxy) = union(
+    (:δmod, :δref, :δmethods, :δfields),
     propertynames(proxy.δmod.instance_methods),
     propertynames(proxy.δmod.instance_fields)
 )
